@@ -1,74 +1,547 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OpenTrade Protocol — Snowboard Shop Demo</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
-        h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
-        #listings { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
-        .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; }
-        .card h3 { color: #38bdf8; margin-bottom: 0.5rem; }
-        .card .price { color: #4ade80; font-weight: bold; font-size: 1.2rem; }
-        .card .seller { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
-        .card .id { color: #64748b; font-size: 0.75rem; margin-top: 0.5rem; }
-        #error { color: #f87171; padding: 1rem; background: #1c1917; border-radius: 8px; margin-top: 1rem; display: none; }
-        .loading { color: #94a3b8; padding: 2rem; text-align: center; }
-        .empty { color: #64748b; padding: 2rem; text-align: center; }
-        button { background: #38bdf8; color: #0f172a; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: 600; }
-        button:hover { background: #7dd3fc; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
-    </style>
-</head>
-<body>
-    <h1>🏂 Snowboard Shop — OpenTrade Protocol Demo</h1>
-    <p style="color:#64748b;margin-bottom:1.5rem;">
-        Этот магазин не хранит товары локально, а получает их исключительно через API протокола.
-    </p>
-    <button id="load-btn" onclick="loadListings()">Загрузить каталог</button>
-    <div id="listings"><div class="loading">Нажмите кнопку для загрузки...</div></div>
-    <div id="error"></div>
-
+    <title>OpenTrade — Сноуборд Магазин</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <script>
-        const API_URL = 'http://localhost:8000/api/v1/listings';
-
-        async function loadListings() {
-            const container = document.getElementById('listings');
-            const errorDiv = document.getElementById('error');
-            const btn = document.getElementById('load-btn');
-            btn.disabled = true;
-            btn.textContent = 'Загрузка...';
-            errorDiv.style.display = 'none';
-            errorDiv.textContent = '';
-
-            try {
-                const resp = await fetch(API_URL);
-                if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
-                const data = await resp.json();
-                const listings = Array.isArray(data) ? data : (data.items || data.results || data.listings || []);
-                if (!listings.length) {
-                    container.innerHTML = '<div class="empty">Нет листингов. Добавьте первый через API.</div>';
-                    return;
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        dark: {
+                            900: '#0f172a',
+                            800: '#1e293b',
+                            700: '#334155',
+                            600: '#475569',
+                        },
+                        accent: {
+                            DEFAULT: '#38bdf8',
+                            hover: '#7dd3fc',
+                            dark: '#0284c7',
+                        },
+                        success: '#4ade80',
+                        warning: '#fbbf24',
+                        danger: '#f87171',
+                    },
+                    fontFamily: {
+                        sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+                    },
                 }
-                container.innerHTML = listings.map(l =>
-                    '<div class="card">' +
-                        '<h3>' + (l.title || l.product?.model || 'Без названия') + '</h3>' +
-                        '<p class="price">' + (l.price ? '$' + l.price : (l.pricing?.askPrice?.amount || 'Цена не указана')) + '</p>' +
-                        '<p class="seller">Продавец: ' + (l.seller?.node_id || l.seller_id || l.seller || '—') + '</p>' +
-                        '<p class="id">' + (l.id || l.listingId || l.identifier?.ot_listingId || '') + '</p>' +
-                    '</div>'
-                ).join('');
-            } catch (err) {
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'Ошибка загрузки: ' + err.message;
-                container.innerHTML = '';
-            } finally {
-                btn.disabled = false;
-                btn.textContent = 'Загрузить каталог';
             }
         }
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
+        .product-card { animation: fadeInUp 0.4s ease forwards; opacity: 0; }
+        @keyframes fadeInUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top: 3px solid #38bdf8;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .modal-overlay {
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(4px);
+        }
+        .badge-new { background: linear-gradient(135deg, #4ade80, #22c55e); }
+        .badge-used-like { background: linear-gradient(135deg, #60a5fa, #3b82f6); }
+        .badge-used-good { background: linear-gradient(135deg, #fbbf24, #f59e0b); }
+        .badge-used-fair { background: linear-gradient(135deg, #fb923c, #f97316); }
+        .badge-for-parts { background: linear-gradient(135deg, #f87171, #ef4444); }
+        .category-tab { transition: all 0.2s ease; }
+        .category-tab:hover { background: rgba(56, 189, 248, 0.1); }
+        .category-tab.active { background: #38bdf8; color: #0f172a; }
+        .product-image { transition: transform 0.3s ease; }
+        .product-card:hover .product-image { transform: scale(1.05); }
+        .btn-buy { transition: all 0.2s ease; }
+        .btn-buy:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(56, 189, 248, 0.4); }
+        .btn-buy:active { transform: translateY(0); }
+        input:focus, select:focus { outline: none; box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.2); border-color: #38bdf8; }
+    </style>
+</head>
+<body class="bg-dark-900 text-white min-h-screen">
+    <!-- Header -->
+    <header class="bg-gradient-to-r from-dark-800 to-dark-900 border-b border-dark-700 sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+            <a href="#" class="flex items-center gap-3">
+                <span class="text-3xl">🏂</span>
+                <div>
+                    <div class="text-xl font-bold text-accent">OpenTrade</div>
+                    <div class="text-xs text-dark-600">Snowboard Marketplace</div>
+                </div>
+            </a>
+            <div id="protocol-badge" class="flex items-center gap-2 px-4 py-2 bg-dark-800 rounded-full text-sm border border-dark-700">
+                <span id="protocol-status-icon" class="text-sm">🟡</span>
+                <span id="protocol-status-text" class="text-dark-400">🟡 Подключение к сети OpenTrade...</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 py-6">
+        <!-- Filters -->
+        <div class="bg-dark-800 rounded-xl border border-dark-700 p-4 mb-6 flex flex-wrap gap-4 items-end">
+            <!-- Category Filter -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs uppercase text-dark-600 font-semibold tracking-wider">Категория</label>
+                <select id="category-filter" class="bg-dark-900 border border-dark-700 text-white rounded-lg px-4 py-2.5 min-w-[160px]">
+                    <option value="all">Все товары</option>
+                    <option value="snowboards">🏂 Сноуборды</option>
+                    <option value="bindings">🔗 Крепления</option>
+                    <option value="boots">👢 Ботинки</option>
+                </select>
+            </div>
+
+            <!-- Price Range -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs uppercase text-dark-600 font-semibold tracking-wider">Цена (RUB)</label>
+                <div class="flex items-center gap-2">
+                    <input type="number" id="price-min" placeholder="От" min="0" class="bg-dark-900 border border-dark-700 text-white rounded-lg px-3 py-2.5 w-28">
+                    <span class="text-dark-600">—</span>
+                    <input type="number" id="price-max" placeholder="До" min="0" class="bg-dark-900 border border-dark-700 text-white rounded-lg px-3 py-2.5 w-28">
+                </div>
+            </div>
+
+            <!-- Search -->
+            <div class="flex-1 min-w-[200px] flex flex-col gap-1">
+                <label class="text-xs uppercase text-dark-600 font-semibold tracking-wider">Поиск</label>
+                <div class="relative">
+                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-dark-600">🔍</span>
+                    <input type="text" id="search-input" placeholder="Поиск по названию..." class="w-full bg-dark-900 border border-dark-700 text-white rounded-lg pl-10 pr-4 py-2.5">
+                </div>
+            </div>
+
+            <!-- Sort -->
+            <div class="flex flex-col gap-1">
+                <label class="text-xs uppercase text-dark-600 font-semibold tracking-wider">Сортировка</label>
+                <select id="sort-select" class="bg-dark-900 border border-dark-700 text-white rounded-lg px-4 py-2.5">
+                    <option value="default">По умолчанию</option>
+                    <option value="price-asc">Цена ↑</option>
+                    <option value="price-desc">Цена ↓</option>
+                    <option value="title-asc">Название А-Я</option>
+                </select>
+            </div>
+
+            <!-- Clear Filters -->
+            <button id="clear-filters" class="hidden px-4 py-2.5 bg-dark-700 hover:bg-dark-600 rounded-lg text-sm transition-colors">
+                Сбросить
+            </button>
+        </div>
+
+        <!-- Results Bar -->
+        <div class="flex items-center justify-between mb-4">
+            <span id="results-count" class="text-dark-600 text-sm">Загрузка...</span>
+        </div>
+
+        <!-- Product Grid -->
+        <div id="product-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="flex flex-col items-center justify-center py-20">
+                <div class="spinner mb-4"></div>
+                <div class="text-dark-600">Загрузка каталога товаров...</div>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="empty-state" class="hidden flex flex-col items-center justify-center py-20">
+            <div class="text-6xl mb-4">🏔️</div>
+            <div class="text-xl font-semibold text-dark-600 mb-2">Товары не найдены</div>
+            <div class="text-dark-600 text-sm">Попробуйте изменить параметры фильтрации</div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="text-center py-8 border-t border-dark-700 mt-12">
+        <p class="text-dark-600 text-sm">
+            Powered by <a href="https://opentradeprotocol.com" target="_blank" class="text-accent hover:text-accent-hover">OpenTrade Protocol</a> — Decentralized P2P Marketplace
+        </p>
+        <p class="text-dark-600 text-xs mt-2">
+            PEP Node: <code id="node-id" class="text-dark-600">—</code>
+        </p>
+    </footer>
+
+    <!-- Escrow Modal -->
+    <div id="escrow-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center modal-overlay">
+        <div class="bg-dark-800 rounded-2xl border border-dark-700 max-w-md w-full mx-4 shadow-2xl">
+            <div class="p-6">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-xl font-bold">Оформление заказа</h3>
+                    <button id="modal-close" class="text-dark-600 hover:text-white text-2xl">&times;</button>
+                </div>
+                <div class="flex items-center gap-4 bg-dark-900 rounded-xl p-4 mb-4">
+                    <div id="modal-product-icon" class="text-4xl">🏂</div>
+                    <div>
+                        <div id="modal-product-name" class="font-semibold"></div>
+                        <div id="modal-product-price" class="text-accent font-bold text-lg"></div>
+                    </div>
+                </div>
+                <div class="text-sm text-dark-600 mb-4">
+                    Продавец: <span id="modal-seller" class="text-dark-400"></span>
+                </div>
+                <div class="flex items-center gap-3 p-4 bg-accent/10 border border-accent/20 rounded-xl mb-4">
+                    <span class="text-2xl">🔒</span>
+                    <div class="text-sm text-accent/80">
+                        <strong>Инициализация смарт-контракта Escrow...</strong><br>
+                        Интеграция с escrow-service будет добавлена в следующей версии.
+                        Средства будут защищены до подтверждения получения товара.
+                    </div>
+                </div>
+            </div>
+            <div class="flex gap-3 p-6 border-t border-dark-700">
+                <button id="modal-cancel" class="flex-1 px-4 py-3 bg-dark-700 hover:bg-dark-600 rounded-xl font-semibold transition-colors">
+                    Закрыть
+                </button>
+                <button id="modal-confirm" class="flex-1 px-4 py-3 bg-accent hover:bg-accent-hover text-dark-900 rounded-xl font-semibold transition-colors">
+                    Подтвердить
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ===== Configuration =====
+        const API_URL = 'http://localhost:8000/v1/api/v1/listings';
+        const HEALTH_URL = 'http://localhost:8000/health';
+
+        // ===== State =====
+        let allListings = [];
+        let filteredListings = [];
+        let activeCategory = 'all';
+        let searchQuery = '';
+        let priceMin = null;
+        let priceMax = null;
+        let sortBy = 'default';
+        let apiConnected = false;
+
+        // ===== Image mappings =====
+        const categoryImages = {
+            snowboards: ['🏂', 'https://images.unsplash.com/photo-1522056615691-da7af7843a7f?w=400&h=300&fit=crop&auto=format'],
+            bindings: ['🔗', 'https://images.unsplash.com/photo-1535591273668-578e31182c4d?w=400&h=300&fit=crop&auto=format'],
+            boots: ['👢', 'https://images.unsplash.com/photo-1598971861713-544d4f3cd2cf?w=400&h=300&fit=crop&auto=format'],
+        };
+
+        // ===== Condition config =====
+        const conditions = {
+            'new': { label: 'Новый', class: 'badge-new' },
+            'used_like_new': { label: 'Как новый', class: 'badge-used-like' },
+            'used_good': { label: 'Хороший', class: 'badge-used-good' },
+            'used_fair': { label: 'Удовл.', class: 'badge-used-fair' },
+            'for_parts': { label: 'На запчасти', class: 'badge-for-parts' },
+        };
+
+        const categoryLabels = {
+            snowboards: 'Сноуборд',
+            bindings: 'Биндинг',
+            boots: 'Ботинок',
+        };
+
+        // ===== DOM Elements =====
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const productGrid = document.getElementById('product-grid');
+        const emptyState = document.getElementById('empty-state');
+        const resultsCount = document.getElementById('results-count');
+        const clearFiltersBtn = document.getElementById('clear-filters');
+        const nodeIdEl = document.getElementById('node-id');
+        const categoryFilter = document.getElementById('category-filter');
+        const priceMinInput = document.getElementById('price-min');
+        const priceMaxInput = document.getElementById('price-max');
+        const searchInput = document.getElementById('search-input');
+        const sortSelect = document.getElementById('sort-select');
+        const escrowModal = document.getElementById('escrow-modal');
+        const modalClose = document.getElementById('modal-close');
+        const modalCancel = document.getElementById('modal-cancel');
+        const modalConfirm = document.getElementById('modal-confirm');
+        const modalImg = document.getElementById('modal-product-icon');
+        const modalName = document.getElementById('modal-product-name');
+        const modalPrice = document.getElementById('modal-product-price');
+        const modalSeller = document.getElementById('modal-seller');
+
+        // ===== Utility =====
+        function formatPrice(price, currency) {
+            if (currency === 'USD') return `$${price.toLocaleString()}`;
+            return `${price.toLocaleString()} ₽`;
+        }
+
+        function getPlural(n) {
+            const lastTwo = n % 100;
+            const last = n % 10;
+            if (lastTwo >= 11 && lastTwo <= 19) return 'товаров';
+            if (last === 1) return 'товар';
+            if (last >= 2 && last <= 4) return 'товара';
+            return 'товаров';
+        }
+
+        function debounce(fn, delay) {
+            let timer;
+            return (...args) => {
+                clearTimeout(timer);
+                timer = setTimeout(() => fn(...args), delay);
+            };
+        }
+
+        // ===== API Functions =====
+        async function checkHealth() {
+            try {
+                const resp = await fetch(HEALTH_URL, { mode: 'cors' });
+                if (resp.ok) {
+                    const data = await resp.json();
+                    apiConnected = true;
+                    statusDot.className = 'w-2.5 h-2.5 rounded-full bg-success transition-colors';
+                    statusText.textContent = 'API подключен';
+                    statusText.className = 'text-success';
+                    if (data.node_id) nodeIdEl.textContent = data.node_id;
+                    return true;
+                }
+            } catch { /* fall through */ }
+            return false;
+        }
+
+        async function fetchListings() {
+            try {
+                const resp = await fetch(API_URL + '?category=all&limit=100&_=' + Date.now(), { mode: 'cors' });
+                if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const data = await resp.json();
+                return (data.items || data.listings || [])
+                    .map(item => ({
+                        id: item.id || '',
+                        title: item.title || 'Без названия',
+                        description: item.description || '',
+                        price: item.price || 0,
+                        currency: item.currency || 'RUB',
+                        category: item.category || 'snowboards',
+                        condition: item.condition || 'used_good',
+                        seller_node_id: item.seller?.node_id || item.seller_node_id || '—',
+                        created_at: item.created_at || '',
+                    }));
+            } catch (err) {
+                console.warn('API fetch failed:', err);
+                return [];
+            }
+        }
+
+        // ===== Filtering & Sorting =====
+        function applyFilters() {
+            let result = [...allListings];
+
+            if (activeCategory !== 'all') {
+                result = result.filter(l => l.category === activeCategory);
+            }
+
+            if (searchQuery.trim()) {
+                const q = searchQuery.toLowerCase().trim();
+                result = result.filter(l => l.title.toLowerCase().includes(q));
+            }
+
+            if (priceMin !== null && priceMin > 0) result = result.filter(l => l.price >= priceMin);
+            if (priceMax !== null && priceMax > 0) result = result.filter(l => l.price <= priceMax);
+
+            switch (sortBy) {
+                case 'price-asc': result.sort((a, b) => a.price - b.price); break;
+                case 'price-desc': result.sort((a, b) => b.price - a.price); break;
+                case 'title-asc': result.sort((a, b) => a.title.localeCompare(b.title, 'ru')); break;
+            }
+
+            filteredListings = result;
+            renderProducts();
+            updateResultsBar();
+            updateClearFilters();
+        }
+
+        function updateResultsBar() {
+            resultsCount.innerHTML = `Найдено: <strong class="text-white">${filteredListings.length}</strong> ${getPlural(filteredListings.length)}`;
+        }
+
+        function updateClearFilters() {
+            const hasFilters = activeCategory !== 'all' || searchQuery || (priceMin !== null && priceMin > 0) || (priceMax !== null && priceMax > 0);
+            clearFiltersBtn.classList.toggle('hidden', !hasFilters);
+        }
+
+        // ===== Render =====
+        function renderProducts() {
+            if (filteredListings.length === 0) {
+                productGrid.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            productGrid.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            productGrid.innerHTML = filteredListings.map((listing, i) => {
+                const cond = conditions[listing.condition] || conditions['used_good'];
+                const emoji = categoryImages[listing.category]?.[0] || '🏂';
+                const imageUrl = categoryImages[listing.category]?.[1] || '';
+
+                return `
+                    <div class="product-card bg-dark-800 rounded-xl border border-dark-700 overflow-hidden hover:border-accent/30 transition-all" style="animation-delay: ${Math.min(i * 0.03, 0.24)}s">
+                        <!-- Image -->
+                        <div class="relative h-48 bg-dark-900 flex items-center justify-center overflow-hidden">
+                            ${imageUrl ? `<img src="${imageUrl}" alt="${listing.title}" class="product-image w-full h-full object-cover" onerror="this.parentElement.innerHTML='<span class=\\'text-6xl\\'>${emoji}</span>'">` : `<span class="text-6xl">${emoji}</span>`}
+                            <span class="${cond.class} text-white text-xs font-bold px-3 py-1 rounded-full absolute top-3 right-3 shadow-lg">${cond.label}</span>
+                        </div>
+                        <!-- Content -->
+                        <div class="p-5">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="text-xs font-semibold text-accent bg-accent/10 px-2 py-0.5 rounded">${categoryLabels[listing.category] || listing.category}</span>
+                            </div>
+                            <h3 class="font-bold text-lg mb-2 line-clamp-2">${listing.title}</h3>
+                            ${listing.description ? `<p class="text-dark-600 text-sm mb-3 line-clamp-2">${listing.description}</p>` : ''}
+                            <div class="flex items-center justify-between mt-auto">
+                                <div>
+                                    <div class="text-2xl font-bold text-white">${formatPrice(listing.price, listing.currency)}</div>
+                                    <div class="text-xs text-dark-600 mt-0.5">Продавец: ${listing.seller_node_id}</div>
+                                </div>
+                                <button onclick="openEscrowModal(${i})" class="btn-buy bg-accent hover:bg-accent-hover text-dark-900 font-bold px-5 py-3 rounded-xl">
+                                    Купить
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // ===== Modal =====
+        function openEscrowModal(index) {
+            const listing = filteredListings[index];
+            if (!listing) return;
+            const emoji = categoryImages[listing.category]?.[0] || '🏂';
+            modalImg.textContent = emoji;
+            modalName.textContent = listing.title;
+            modalPrice.textContent = formatPrice(listing.price, listing.currency);
+            modalSeller.textContent = listing.seller_node_id;
+            escrowModal.classList.remove('hidden');
+            escrowModal.classList.add('flex');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeEscrowModal() {
+            escrowModal.classList.add('hidden');
+            escrowModal.classList.remove('flex');
+            document.body.style.overflow = '';
+        }
+
+        function confirmPurchase() {
+            closeEscrowModal();
+        }
+
+        // ===== Event Listeners =====
+        categoryFilter.addEventListener('change', () => {
+            activeCategory = categoryFilter.value;
+            applyFilters();
+        });
+
+        priceMinInput.addEventListener('input', () => {
+            priceMin = priceMinInput.value ? Number(priceMinInput.value) : null;
+            applyFilters();
+        });
+
+        priceMaxInput.addEventListener('input', () => {
+            priceMax = priceMaxInput.value ? Number(priceMaxInput.value) : null;
+            applyFilters();
+        });
+
+        searchInput.addEventListener('input', debounce(() => {
+            searchQuery = searchInput.value;
+            applyFilters();
+        }, 300));
+
+        sortSelect.addEventListener('change', () => {
+            sortBy = sortSelect.value;
+            applyFilters();
+        });
+
+        clearFiltersBtn.addEventListener('click', () => {
+            activeCategory = 'all';
+            searchQuery = '';
+            priceMin = null;
+            priceMax = null;
+            sortBy = 'default';
+            categoryFilter.value = 'all';
+            searchInput.value = '';
+            priceMinInput.value = '';
+            priceMaxInput.value = '';
+            sortSelect.value = 'default';
+            applyFilters();
+        });
+
+        modalClose.addEventListener('click', closeEscrowModal);
+        modalCancel.addEventListener('click', closeEscrowModal);
+        modalConfirm.addEventListener('click', confirmPurchase);
+
+        escrowModal.addEventListener('click', (e) => {
+            if (e.target === escrowModal) closeEscrowModal();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEscrowModal();
+        });
+
+        // ===== Protocol Badge =====
+        const protocolBadge = document.getElementById('protocol-badge');
+        const protocolStatusIcon = document.getElementById('protocol-status-icon');
+        const protocolStatusText = document.getElementById('protocol-status-text');
+
+        function setBadgeConnecting() {
+            protocolStatusIcon.textContent = '🟡';
+            protocolStatusText.innerHTML = '🟡 <span class="inline-flex items-center gap-1">Подключение к сети OpenTrade<span class="inline-flex gap-0.5"><span class="w-1 h-1 bg-accent rounded-full animate-pulse"></span><span class="w-1 h-1 bg-accent rounded-full animate-pulse" style="animation-delay: 0.2s"></span><span class="w-1 h-1 bg-accent rounded-full animate-pulse" style="animation-delay: 0.4s"></span></span></span>';
+            protocolBadge.className = 'flex items-center gap-2 px-4 py-2 bg-dark-800 rounded-full text-sm border border-yellow-500/30';
+        }
+
+        function setBadgeConnected(nodeId) {
+            protocolStatusIcon.textContent = '🟢';
+            protocolStatusText.textContent = `🟢 Синхронизировано с PEP Node: ${nodeId}`;
+            protocolBadge.className = 'flex items-center gap-2 px-4 py-2 bg-success/10 rounded-full text-sm border border-success/30';
+        }
+
+        function setBadgeError() {
+            protocolStatusIcon.textContent = '🔴';
+            protocolStatusText.textContent = '🔴 Ошибка сети: PEP Node недоступен';
+            protocolBadge.className = 'flex items-center gap-2 px-4 py-2 bg-danger/10 rounded-full text-sm border border-danger/30';
+        }
+
+        // ===== Init =====
+        async function init() {
+            setBadgeConnecting();
+            productGrid.innerHTML = '<div class="flex flex-col items-center justify-center py-20 col-span-full"><div class="spinner mb-4"></div><div class="text-dark-600">Загрузка каталога товаров...</div></div>';
+            emptyState.classList.add('hidden');
+            resultsCount.innerHTML = 'Загрузка...';
+            clearFiltersBtn.classList.add('hidden');
+
+            const healthy = await checkHealth();
+            if (healthy) {
+                allListings = await fetchListings();
+                applyFilters();
+                // Get node ID from health check
+                try {
+                    const resp = await fetch(HEALTH_URL, { mode: 'cors' });
+                    const data = await resp.json();
+                    if (data.node_id) {
+                        setBadgeConnected(data.node_id);
+                        nodeIdEl.textContent = data.node_id;
+                    }
+                } catch {
+                    setBadgeConnected('snow.opentradeprotocol.com');
+                }
+            } else {
+                setBadgeError();
+                productGrid.innerHTML = '<div class="flex flex-col items-center justify-center py-20 col-span-full"><div class="text-6xl mb-4">🏔️</div><div class="text-xl font-semibold text-dark-600 mb-2">API недоступен</div><div class="text-dark-600 text-sm">Убедитесь, что PEP Node запущен на http://localhost:8000</div></div>';
+                resultsCount.innerHTML = 'API недоступен';
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>
