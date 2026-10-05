@@ -8,20 +8,28 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 2rem; }
         h1 { font-size: 1.5rem; margin-bottom: 1.5rem; color: #38bdf8; }
-        #listings { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
+        #listings { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; margin-top: 1rem; }
         .card { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 1rem; }
         .card h3 { color: #38bdf8; margin-bottom: 0.5rem; }
         .card .price { color: #4ade80; font-weight: bold; font-size: 1.2rem; }
         .card .seller { color: #94a3b8; font-size: 0.85rem; margin-top: 0.25rem; }
-        #error { color: #f87171; padding: 1rem; background: #1c1917; border-radius: 8px; }
+        .card .id { color: #64748b; font-size: 0.75rem; margin-top: 0.5rem; }
+        #error { color: #f87171; padding: 1rem; background: #1c1917; border-radius: 8px; margin-top: 1rem; display: none; }
         .loading { color: #94a3b8; padding: 2rem; text-align: center; }
+        .empty { color: #64748b; padding: 2rem; text-align: center; }
+        button { background: #38bdf8; color: #0f172a; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-size: 1rem; font-weight: 600; }
+        button:hover { background: #7dd3fc; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
     </style>
 </head>
 <body>
     <h1>🏂 Snowboard Shop — OpenTrade Protocol Demo</h1>
-    <p style="color:#64748b;margin-bottom:1.5rem;">Fetching listings from <code style="color:#38bdf8;">http://localhost:8000/api/v1/listings</code></p>
-    <div id="listings"><div class="loading">Loading...</div></div>
-    <div id="error" style="display:none;"></div>
+    <p style="color:#64748b;margin-bottom:1.5rem;">
+        Этот магазин не хранит товары локально, а получает их исключительно через API протокола.
+    </p>
+    <button id="load-btn" onclick="loadListings()">Загрузить каталог</button>
+    <div id="listings"><div class="loading">Нажмите кнопку для загрузки...</div></div>
+    <div id="error"></div>
 
     <script>
         const API_URL = 'http://localhost:8000/api/v1/listings';
@@ -29,31 +37,38 @@
         async function loadListings() {
             const container = document.getElementById('listings');
             const errorDiv = document.getElementById('error');
+            const btn = document.getElementById('load-btn');
+            btn.disabled = true;
+            btn.textContent = 'Загрузка...';
+            errorDiv.style.display = 'none';
+            errorDiv.textContent = '';
+
             try {
                 const resp = await fetch(API_URL);
-                if (!resp.ok) throw new Error(\`HTTP \${resp.status}: \${resp.statusText}\`);
+                if (!resp.ok) throw new Error('HTTP ' + resp.status + ': ' + resp.statusText);
                 const data = await resp.json();
-                const listings = Array.isArray(data) ? data : (data.results || data.items || []);
+                const listings = Array.isArray(data) ? data : (data.items || data.results || data.listings || []);
                 if (!listings.length) {
-                    container.innerHTML = '<p style="color:#64748b;padding:2rem;">No listings yet.</p>';
+                    container.innerHTML = '<div class="empty">Нет листингов. Добавьте первый через API.</div>';
                     return;
                 }
-                container.innerHTML = listings.map(l => \`
-                    <div class="card">
-                        <h3>\${l.title || 'Untitled'}</h3>
-                        <p class="price">\${l.price ? '\$' + l.price : 'Price TBD'}</p>
-                        <p class="seller">Seller: \${l.seller_id || l.seller || '—'}</p>
-                        <p style="color:#64748b;font-size:0.8rem;margin-top:0.5rem;">\${l.id || ''}</p>
-                    </div>
-                \`).join('');
+                container.innerHTML = listings.map(l =>
+                    '<div class="card">' +
+                        '<h3>' + (l.title || l.product?.model || 'Без названия') + '</h3>' +
+                        '<p class="price">' + (l.price ? '$' + l.price : (l.pricing?.askPrice?.amount || 'Цена не указана')) + '</p>' +
+                        '<p class="seller">Продавец: ' + (l.seller?.node_id || l.seller_id || l.seller || '—') + '</p>' +
+                        '<p class="id">' + (l.id || l.listingId || l.identifier?.ot_listingId || '') + '</p>' +
+                    '</div>'
+                ).join('');
             } catch (err) {
                 errorDiv.style.display = 'block';
-                errorDiv.textContent = 'Failed to load: ' + err.message;
+                errorDiv.textContent = 'Ошибка загрузки: ' + err.message;
                 container.innerHTML = '';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Загрузить каталог';
             }
         }
-
-        loadListings();
     </script>
 </body>
 </html>
