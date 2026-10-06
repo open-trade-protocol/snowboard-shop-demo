@@ -210,8 +210,13 @@
 
     <script>
         // ===== Configuration =====
-        const API_URL = 'http://localhost:8000/v1/api/v1/listings';
-        const HEALTH_URL = 'http://localhost:8000/health';
+        // Use relative paths so the browser automatically resolves to the current domain.
+        // When served from demo-shop.opentradeprotocol.com, these become:
+        //   /v1/api/v1/listings → demo-shop.opentradeprotocol.com/v1/api/v1/listings
+        //   /health               → demo-shop.opentradeprotocol.com/health
+        // Nginx on that server proxies /api/ to PEP Node (port 8000) and serves /health directly.
+        const API_URL = '/v1/api/v1/listings';
+        const HEALTH_URL = '/health';
 
         // ===== State =====
         let allListings = [];
