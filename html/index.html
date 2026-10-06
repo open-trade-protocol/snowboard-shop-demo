@@ -235,6 +235,29 @@
             boots: ['👢', 'https://images.unsplash.com/photo-1598971861713-544d4f3cd2cf?w=400&h=300&fit=crop&auto=format'],
         };
 
+        // Brand-specific image hints for better visual variety
+        const brandImages = {
+            burton: 'https://images.unsplash.com/photo-1565992441121-431767e11bde?w=400&h=300&fit=crop&auto=format',
+            nitro: 'https://images.unsplash.com/photo-1551698618-1dfe5d97d256?w=400&h=300&fit=crop&auto=format',
+            capita: 'https://images.unsplash.com/photo-1572301569514-45f3b5822516?w=400&h=300&fit=crop&auto=format',
+            arbor: 'https://images.unsplash.com/photo-1522056615691-da7af7843a7f?w=400&h=300&fit=crop&auto=format',
+            union: 'https://images.unsplash.com/photo-1600271772470-b4243b192037?w=400&h=300&fit=crop&auto=format',
+            roma: 'https://images.unsplash.com/photo-1600271772470-b4243b192037?w=400&h=300&fit=crop&auto=format',
+            vans: 'https://images.unsplash.com/photo-1525966222134-fcfa692c4230?w=400&h=300&fit=crop&auto=format',
+            thirtytwo: 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=400&h=300&fit=crop&auto=format',
+            ride: 'https://images.unsplash.com/photo-1608736787215-ed0872dc66ea?w=400&h=300&fit=crop&auto=format',
+        };
+
+        function getProductImage(listing) {
+            // Try brand match first
+            const titleLower = (listing.title || '').toLowerCase();
+            for (const [brand, url] of Object.entries(brandImages)) {
+                if (titleLower.includes(brand)) return url;
+            }
+            // Fall back to category image
+            return categoryImages[listing.category]?.[1] || '';
+        }
+
         // ===== Condition config =====
         const conditions = {
             'new': { label: 'Новый', class: 'badge-new' },
@@ -392,7 +415,7 @@
                     <div class="product-card bg-dark-800 rounded-xl border border-dark-700 overflow-hidden hover:border-accent/30 transition-all" style="animation-delay: ${Math.min(i * 0.03, 0.24)}s">
                         <!-- Image -->
                         <div class="relative h-48 bg-dark-900 flex items-center justify-center overflow-hidden">
-                            ${imageUrl ? `<img src="${imageUrl}" alt="${listing.title}" class="product-image w-full h-full object-cover" onerror="this.parentElement.innerHTML='<span class=\\'text-6xl\\'>${emoji}</span>'">` : `<span class="text-6xl">${emoji}</span>`}
+                            ${getProductImage(listing) ? `<img src="${getProductImage(listing)}" alt="${listing.title}" class="product-image w-full h-full object-cover" onerror="this.parentElement.innerHTML='<span class=\\'text-6xl\\'>${emoji}</span>'">` : `<span class="text-6xl">${emoji}</span>`}
                             <span class="${cond.class} text-white text-xs font-bold px-3 py-1 rounded-full absolute top-3 right-3 shadow-lg">${cond.label}</span>
                         </div>
                         <!-- Content -->
