@@ -1,85 +1,165 @@
 # 🏂 Snowboard Shop — OpenTrade Protocol Demo
 
-Этот магазин **не хранит товары локально**, а получает их исключительно через API протокола OpenTrade.
+Live demo: **[demo-shop.opentradeprotocol.com](https://demo-shop.opentradeprotocol.com)**
 
-## Концепция
+This shop **does not store products locally** — it fetches them in real-time from the PEP Node API.
 
-Snowboard Shop — это фронтенд-демонстрация, которая:
+## Concept
 
-1. **Не имеет собственной базы данных товаров**
-2. **Загружает каталог в реальном времени** с узла PEP Node (`http://localhost:8000/api/v1/listings`)
-3. **Отображает листинги** как карточки товаров с изображениями
-4. **Поддерживает фильтрацию** по категориям, цене и поиску
-5. **Адаптивный дизайн** — работает на десктопе, планшете и мобильном
+Snowboard Shop is a frontend demonstration that:
 
-## Возможности
+1. **Has no local product database**
+2. **Fetches catalog in real-time** from PEP Node API (`http://localhost:8000/v1/api/v1/listings`)
+3. **Displays listings** as product cards with images
+4. **Supports filtering** by category, price, and search
+5. **Responsive design** — works on desktop, tablet, and mobile
 
-- **Фильтры по категориям**: Сноуборды, Биндинги, Ботинки
-- **Фильтр по цене**: от и до (в RUB)
-- **Поиск по названию**: мгновенная фильтрация
-- **Сортировка**: по цене (возр./убыв.), по названию
-- **Карточки товаров**: изображение, название, описание, цена, состояние, продавец
-- **Модальное окно оформления**: с информацией о товаре и escrow-уведомлением
-- **Адаптивный дизайн**: 4 колонки (десктоп) → 3 → 2 → 1 (мобильный)
-- **Статус API**: индикатор подключения в реальном времени
-- **Fallback**: офлайн-режим при недоступности API
+## Features
 
-## Запуск
+- **Category filters**: Snowboards, Bindings, Boots
+- **Price range filter**: from/to (in RUB)
+- **Search by title**: instant filtering
+- **Sorting**: by price (asc/desc), by name
+- **Product cards**: image, name, description, price, condition, seller
+- **Checkout modal**: with product info and escrow notification
+- **Responsive design**: 4 columns (desktop) → 3 → 2 → 1 (mobile)
+- **API status indicator**: real-time connection status
+- **Fallback**: offline mode when API is unavailable
 
-### Через Docker Compose (рекомендуется)
+## Images
+
+Product images are sourced from Unsplash with brand-specific mapping:
+
+| Brand | Image Source |
+|-------|-------------|
+| Burton | `burton-snowboard` |
+| Nitro | `nitro-snowboard` |
+| Capita | `capita-snowboard` |
+| Arbor | `arbor-snowboard` |
+| Jones | `jones-snowboard` |
+| Vans | `vans-snowboard-boots` |
+| ThirtyTwo | `thirtytwo-snowboard` |
+| Ride | `ride-snowboard` |
+| Rome | `rome-snowboard-bindings` |
+| DC | `dc-shoes-snowboard` |
+
+## Quick Start
+
+### Via Docker Compose (Recommended)
 
 ```bash
 cd ../infrastructure
 docker compose up --build -d
 ```
 
-### Напрямую
+Open **http://localhost:8080** in your browser.
+
+### Direct
 
 ```bash
-# Запустите PEP Node сначала
+# Start PEP Node first
 cd ../pep-node
-python3 -m app.main
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload &
 
-# Откройте html/index.html в браузере
-# Или используйте любой HTTP-сервер:
+# Seed test data
+cd ../infrastructure
+python3 scripts/seed-snowboards.py --base-url http://localhost:8000
+
+# Serve the demo
+cd ../snowboard-shop-demo
 python3 -m http.server 8080 --directory html
 ```
 
-## Фронтенд
+Open **http://localhost:8080** in your browser.
 
-- **URL**: http://localhost (или порт вашего веб-сервера)
-- **API**: http://localhost:8000/api/v1/listings
-- **Swagger Docs**: http://localhost:8000/docs
+## API Integration
 
-## Структура
+### Fetch Listings
+
+```bash
+# Get all listings
+curl http://localhost:8000/v1/api/v1/listings
+
+# Filter by category
+curl "http://localhost:8000/v1/api/v1/listings?category=snowboards"
+
+# Create listing
+curl -X POST http://localhost:8000/v1/api/v1/listings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Burton Custom X 162",
+    "description": "Professional freestyle snowboard",
+    "price": 45000,
+    "currency": "RUB",
+    "category": "snowboards",
+    "condition": "new",
+    "seller_node_id": "node-test-01"
+  }'
+```
+
+### Search
+
+```bash
+# Full-text search
+curl -X POST "http://localhost:8000/v1/api/v1/search?query=Burton&category=all"
+```
+
+## Project Structure
 
 ```
 snowboard-shop-demo/
 ├── html/
-│   └── index.html    # Единственная страница (HTML + CSS + JS)
+│   └── index.html    # Single page (HTML + CSS + JS)
 ├── Dockerfile
 └── README.md
 ```
 
-## Требования к PEP Node
+## Technology Stack
 
-Для корректной работы необходимо:
+- **HTML5** — Semantic markup
+- **Tailwind CSS** (CDN) — Utility-first styling
+- **Vanilla JavaScript** — No framework dependencies
+- **Fetch API** — PEP Node communication
+- **CSS Grid/Flexbox** — Responsive layout
 
-1. Запустить PEP Node с seed-данными:
-   ```bash
-   cd ../pep-node
-   python3 -m app.main
-   cd ../infrastructure
-   python3 scripts/seed-snowboards.py
-   ```
+## Development
 
-2. Или загрузить данные через API:
-   ```bash
-   curl -X POST http://localhost:8000/api/v1/listings \
-     -H "Content-Type: application/json" \
-     -d '{"title":"Burton Custom X","description":"Фристайл","price":45000,"currency":"RUB","category":"snowboards","condition":"new","seller_node_id":"node-test-01"}'
-   ```
+### Adding New Products
 
-## Лицензия
+Products are fetched from the PEP Node API. To add new products:
+
+```bash
+# Via seed script
+cd ../infrastructure
+python3 scripts/seed-snowboards.py --base-url http://localhost:8000
+
+# Via API directly
+curl -X POST http://localhost:8000/v1/api/v1/listings \
+  -H "Content-Type: application/json" \
+  -d '{"title":"New Product","price":10000,"currency":"RUB","category":"snowboards","condition":"new","seller_node_id":"node-test-01"}'
+```
+
+### Customizing Images
+
+Edit the `PRODUCT_IMAGES` mapping in [`html/index.html`](html/index.html) to add your own brand-to-image mappings.
+
+## Deployment
+
+See the [Deployment Guide](https://opentradeprotocol.com/docs/node-operator/deployment/) for production setup.
+
+## Verification
+
+```bash
+# Check API
+curl http://localhost:8000/health
+
+# Seed data
+python3 ../infrastructure/scripts/seed-snowboards.py --base-url http://localhost:8000
+
+# Verify system
+bash ../infrastructure/scripts/verify-system.sh
+```
+
+## License
 
 Apache-2.0
